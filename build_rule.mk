@@ -34,11 +34,53 @@ run:
 	$(MAKE) qemuend
 
 qemurun: image
-	sudo qemu-system-x86_64 -drive if=pflash,readonly,file=$(OVMF_DIR)OVMF_CODE.fd,format=raw -drive if=pflash,file=$(OVMF_DIR)OVMF_VARS.fd,format=raw -cpu qemu64 -smp 8 -machine q35 -clock hpet -monitor telnet:127.0.0.1:1235,server,nowait -vnc 0.0.0.0:0,password $(IMAGE)&
-#	sudo qemu-system-x86_64 -cpu qemu64,+x2apic -smp 8 -machine q35 -monitor telnet:127.0.0.1:1235,server,nowait -vnc 0.0.0.0:0,password -net nic -net bridge,br=br0 -drive id=disk,file=$(IMAGE),if=virtio -usb -usbdevice keyboard &
-#	sudo qemu-system-x86_64 -cpu qemu64,+x2apic -smp 8 -machine q35 -monitor telnet:127.0.0.1:1235,server,nowait -vnc 0.0.0.0:0,password -net nic -net bridge,br=br0 -drive id=disk,file=$(IMAGE),if=none -device ahci,id=ahci -device ide-drive,drive=disk,bus=ahci.0 &
+	#$(MAKE) qemurun_default
+	#$(MAKE) qemurun_usbkbd
+	$(MAKE) qemurun_nvme
 	sleep 0.2s
 	echo "set_password vnc a" | netcat 127.0.0.1 1235
+
+qemurun_default:
+	sudo qemu-system-x86_64 \
+		-drive if=pflash,readonly,file=$(OVMF_DIR)OVMF_CODE.fd,format=raw \
+		-drive if=pflash,file=$(OVMF_DIR)OVMF_VARS.fd,format=raw \
+		-cpu qemu64 -smp 8 -machine q35 \
+		-clock hpet \
+		-monitor telnet:127.0.0.1:1235,server,nowait \
+		-vnc 0.0.0.0:0,password \
+		$(IMAGE)&
+
+NVME_IMAGE = /tmp/$(IMAGEFILE)
+nvme.img:
+	qemu-img create -f raw $(NVME_IMAGE) 2G
+
+qemurun_nvme: $(NVME_IMAGE)
+	sudo qemu-system-x86_64 \
+		-drive if=pflash,readonly,file=$(OVMF_DIR)OVMF_CODE.fd,format=raw \
+		-drive if=pflash,file=$(OVMF_DIR)OVMF_VARS.fd,format=raw \
+		-drive file=$(NVME_IMAGE),if=none,id=drv0 -device nvme,drive=drv0,serial=foo \
+		-cpu qemu64 -smp 8 -machine q35 \
+		-clock hpet \
+		-monitor telnet:127.0.0.1:1235,server,nowait \
+		-vnc 0.0.0.0:0,password \
+		$(IMAGE)&
+
+qemurun_usbkbd:
+	sudo qemu-system-x86_64 \
+		-cpu qemu64,+x2apic -smp 8 -machine q35 \
+		-monitor telnet:127.0.0.1:1235,server,nowait \
+		-vnc 0.0.0.0:0,password -net nic -net bridge,br=br0 \
+		-drive id=disk,file=$(IMAGE),if=virtio \
+		-usb -usbdevice keyboard &
+
+qemurun_ahci:
+	sudo qemu-system-x86_64 \
+		-cpu qemu64,+x2apic -smp 8 -machine q35 \
+		-monitor telnet:127.0.0.1:1235,server,nowait \
+		-vnc 0.0.0.0:0,password -net nic -net bridge,br=br0 \
+		-drive id=disk,file=$(IMAGE),if=none \
+		-device ahci,id=ahci \
+		-device ide-drive,drive=disk,bus=ahci.0 &
 
 debugqemu:
 	sudo gdb -x ./.gdbinit -p `ps aux | grep qemu | sed -n 2P | awk '{ print $$2 }'`
