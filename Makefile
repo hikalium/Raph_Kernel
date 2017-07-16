@@ -2,6 +2,7 @@ include common.mk
 
 VNC_PORT = 15900
 VDI = disk.vdi
+HOST_IP = `ifconfig en0 | grep "inet " | cut -d" " -f2`
 
 define make_wrapper
 	$(if $(shell if [ -e /etc/bootstrapped ]; then echo "guest"; fi), \
@@ -13,6 +14,19 @@ define make_wrapper
 	  vagrant up
 	  vagrant ssh-config > .ssh_config; )
 	  ssh -F .ssh_config default "cd /vagrant/; env MAKEFLAGS=$(MAKEFLAGS) make -f $(RULE_FILE) $(1)"
+	)
+endef
+
+define runcmd_wrapper
+	$(if $(shell if [ -e /etc/bootstrapped ]; then echo "guest"; fi), \
+	  # guest environment
+	  $(1), \
+	  # host environment
+	  $(if $(shell ssh -F .ssh_config default "exit"; if [ $$? != 0 ]; then echo "no-guest"; fi), rm -f .ssh_config
+	  vagrant halt
+	  vagrant up
+	  vagrant ssh-config > .ssh_config; )
+	  ssh -F .ssh_config default "cd /vagrant/; $(1)"
 	)
 endef
 
@@ -94,23 +108,30 @@ vboxrun: vboxkill synctime
 vboxkill:
 	-vboxmanage controlvm RK_Test poweroff
 
-run_pxeserver:
+run_ipxeserver:
 	make pxeimg
 	@echo info: allow port 8080 in your firewall settings
+	@echo info: type following command in iPXE console:
+	@echo info: ----
+	@echo info: dhcp
+	@echo info: kernel http://$(HOST_IP):8080/memdisk
+	@echo info: initrd http://$(HOST_IP):8080/$(IMAGEFILE).gz
+	@echo info: boot
+	@echo info: ----
 	cd net; python -m SimpleHTTPServer 8080
 
-pxeimg: synctime
-	@$(SSH_CMD) "$(REMOTE_COMMAND) cd /vagrant/; make -j3 _cpimage"
+ipxeimg:
+	$(call make_wrapper, _cpimage)
 	gzip $(IMAGEFILE)
 	mv $(IMAGEFILE).gz net/
 
-burn_ipxe: synctime
-	./lan.sh local
-	@$(SSH_CMD) "cd ipxe/src; make bin-x86_64-pcbios/ipxe.usb EMBED=/vagrant/load.cfg; if [ ! -e /dev/sdb ]; then echo 'error: insert usb memory!'; exit -1; fi; sudo dd if=bin-x86_64-pcbios/ipxe.usb of=/dev/sdb"
-
-burn_ipxe_remote: synctime
-	./lan.sh remote
-	@$(SSH_CMD) "cd ipxe/src; make bin-x86_64-pcbios/ipxe.usb EMBED=/vagrant/load.cfg; if [ ! -e /dev/sdb ]; then echo 'error: insert usb memory!'; exit -1; fi; sudo dd if=bin-x86_64-pcbios/ipxe.usb of=/dev/sdb"
+IPXE_SRC_DIR=/home/vagrant/ipxe/src/
+IPXE_IMG=bin-x86_64-pcbios/ipxe.usb
+IPXE_CFG=/vagrant/load.cfg
+ipxe_usb_img:
+	sed -e "s/HOST/$(HOST_IP)/g" memdisk.cfg > load.cfg
+	 $(call runcmd_wrapper, make -C $(IPXE_SRC_DIR) $(IPXE_IMG) EMBED=$(IPXE_CFG) )
+	 $(call runcmd_wrapper, cp $(IPXE_SRC_DIR)$(IPXE_IMG) /vagrant/)
 
 debugqemu:
 	$(call make_wrapper, debugqemu)
