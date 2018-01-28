@@ -1,0 +1,5 @@
+ifconfig
+wait_until_linkup em0
+ifconfig
+setip em0 static 10.10.10.73
+enable_socket em0

@@ -33,6 +33,7 @@
 #include <net/arp.h>
 #include <net/udp.h>
 #include <net/dhcp.h>
+#include <net/socket.h>
 
 //
 // misc func
@@ -734,6 +735,14 @@ void cat(int argc, const char *argv[]) {
   }
 }
 
+void enable_socket(int argc, const char *argv[]) {
+  if (argc < 2) {
+    gtty->Printf("usage: %s <interface>\n");
+    return;
+  }
+  socket_ctrl->Attach(argv[1]);
+}
+
 void RegisterDefaultShellCommands() {
   shell->Register("halt", halt);
   shell->Register("reset", reset);
@@ -751,4 +760,5 @@ void RegisterDefaultShellCommands() {
   shell->Register("beep", beep);
   shell->Register("membench", membench);
   shell->Register("cat", cat);
+  shell->Register("enable_socket", enable_socket);
 }

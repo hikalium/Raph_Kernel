@@ -56,6 +56,7 @@
 #include <net/arp.h>
 #include <net/udp.h>
 #include <net/dhcp.h>
+#include <net/socket.h>
 
 AcpiCtrl *acpi_ctrl = nullptr;
 ApicCtrl *apic_ctrl = nullptr;
@@ -68,6 +69,7 @@ Shell *shell = nullptr;
 PciCtrl *pci_ctrl = nullptr;
 NetDevCtrl *netdev_ctrl = nullptr;
 // ArpTable *arp_table = nullptr;
+SocketCtrl *socket_ctrl = nullptr;
 
 MultibootCtrl _multiboot_ctrl;
 AcpiCtrl _acpi_ctrl;
@@ -83,6 +85,7 @@ AcpicaPciCtrl _acpica_pci_ctrl;
 NetDevCtrl _netdev_ctrl;
 MemCtrl _system_memory_space;
 // ArpTable _arp_table;
+SocketCtrl _socket_ctrl;
 
 CpuId network_cpu;
 CpuId pstack_cpu;
@@ -125,6 +128,8 @@ extern "C" int main() {
   netdev_ctrl = new (&_netdev_ctrl) NetDevCtrl();
 
   // arp_table = new (&_arp_table) ArpTable();
+
+  socket_ctrl = new (&_socket_ctrl) SocketCtrl();
 
   physmem_ctrl->Init();
 
